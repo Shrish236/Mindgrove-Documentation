@@ -1,4 +1,4 @@
-# Task Documentation Repository 
+# Task Documentation
 
 This repository stores source code for various tasks along with the appropriate documentation for each task.
 
