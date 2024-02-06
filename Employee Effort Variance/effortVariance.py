@@ -7,10 +7,13 @@ pd.set_option('display.width', 180)
 
 token= "PERSONAL_ACCESS_TOKEN"
 
-employee_username_map = {
+# Employee github username and corresponding Names
+employee_username_map = { 
     "Shrish236": "Shrish",
     "app1357": "Aparajeeth"
 }
+
+# Function to calculate number of days between two dates 
 def calc_days(date1, date2):
   date_format = "%Y-%m-%d"
 
@@ -21,6 +24,7 @@ def calc_days(date1, date2):
 
   return delta.days
 
+# Function to execute graphQL query to retrieve data 
 def run_query(query, variables):
     headers = {"Authorization": "Bearer " + token}
     request = requests.post('https://api.github.com/graphql', json={'query': query, 'variables' : variables}, headers=headers)
@@ -30,7 +34,10 @@ def run_query(query, variables):
         raise Exception("Query failed to run by returning code of {}. {}".format(request.status_code, query))
 
 
+# Get user input for project number
 project_number = int(input("\nEnter project number: "))
+
+# GraphQL query
 query = """
 
     query($number: Int!){
@@ -95,8 +102,11 @@ query = """
 variables ={
     "number" : project_number
 }
-result = run_query(query, variables)
+result = run_query(query, variables)    # execute query
+
 # print(json.dumps(result, indent=2))
+
+# Parse through retrieved data
 output_planned = {}
 output_inProgress = {}
 output_completed = {}
@@ -128,9 +138,11 @@ for fields in result['data']['user']['projectV2']['items']['nodes']:
     for data in fields['fieldValues']['nodes']:
       if len(data)!=0:
         d[data['field']['name']] = data['date']
+    
+    # Computing effort variance
     d["Planned Effort (days)"] = calc_days(d['Planned Start Date'], d['Planned End Date'])
     d['Actual Effort (days)'] = calc_days(d['Actual Start Date'], d['Actual End Date'])
-    d['Effort variance'] = ((d['Actual Effort (days)'] - d["Planned Effort (days)"])/d["Planned Effort (days)"])*100
+    d['Effort variance'] = ((d['Actual Effort (days)'] - d["Planned Effort (days)"])/d["Planned Effort (days)"])*100 
     d['Task Name'] = fields['content']['title']
     for employee in fields['content']['assignees']['nodes']:
       if(output_completed.get(employee['login']) == None):
