@@ -7,7 +7,7 @@ This repository stores source code for various tasks along with the appropriate 
 To access the tasks and their documentation, you can clone this repository to your local machine using the following command:
 
 ```bash
-git clone https://github.com/your-username/task-repository.git
+git clone https://github.com/Shrish236/Mindgrove-Documentation.git
 ```
 
 Once cloned, you can navigate to the directory of the specific task you are interested in and explore the provided source code and documentation.
