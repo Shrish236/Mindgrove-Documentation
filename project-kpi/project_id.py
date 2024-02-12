@@ -5,7 +5,7 @@ from datetime import datetime
 from tabulate import tabulate
 pd.set_option('display.width', 180)
 
-token= "Enter your token here"
+token= "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"
 
 # Employee github username and corresponding Names
 # employee_username_map = {
