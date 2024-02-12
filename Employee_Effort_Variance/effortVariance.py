@@ -110,7 +110,7 @@ print(json.dumps(result, indent=2))
 output_planned = {}
 output_inProgress = {}
 output_completed = {}
-for fields in result['data']['organization']['projectV2']['items']['nodes']:
+for fields in result['data']['user']['projectV2']['items']['nodes']:
   d = dict()
   if fields['fieldValueByName']['name'] == "Todo":
     for data in fields['fieldValues']['nodes']:
@@ -140,8 +140,8 @@ for fields in result['data']['organization']['projectV2']['items']['nodes']:
         d[data['field']['name']] = data['date']
     
     # Computing effort variance
-    d["Planned Effort (days)"] = calc_days(d['Planned Start'], d['Planned End'])
-    d['Actual Effort (days)'] = calc_days(d['Start Date'], d['End Date'])
+    d["Planned Effort (days)"] = calc_days(d['Planned Start Date'], d['Planned End Date'])
+    d['Actual Effort (days)'] = calc_days(d['Actual Start Date'], d['Actual End Date'])
     d['Effort variance'] = ((d['Actual Effort (days)'] - d["Planned Effort (days)"])/d["Planned Effort (days)"])*100 
     d['Task Name'] = fields['content']['title']
     for employee in fields['content']['assignees']['nodes']:
