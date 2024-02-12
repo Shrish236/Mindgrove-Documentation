@@ -5,15 +5,15 @@ from datetime import datetime
 from tabulate import tabulate
 pd.set_option('display.width', 180)
 
-token= "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"
+token= "Enter token here"
 
 # Employee github username and corresponding Names
-# employee_username_map = { 
+# employee_username_map = {
 #     "Shrish236": "Shrish",
 #     "app1357": "Aparajeeth"
 # }
 
-# Function to calculate number of days between two dates 
+# Function to calculate number of days between two dates
 def calc_days(date1, date2):
   date_format = "%Y-%m-%d"
 
@@ -24,7 +24,7 @@ def calc_days(date1, date2):
 
   return delta.days
 
-# Function to execute graphQL query to retrieve data 
+# Function to execute graphQL query to retrieve data
 def run_query(query, variables):
     headers = {"Authorization": "Bearer " + token}
     request = requests.post('https://api.github.com/graphql', json={'query': query, 'variables' : variables}, headers=headers)
@@ -35,17 +35,74 @@ def run_query(query, variables):
 
 
 # Get user input for project number
-project_number = int(input("\nEnter project number: "))
+project_name = input(("\nEnter project name: "))
 
 # GraphQL query
-query = """
+# query = """
+#     query($number: String!){
 
-    query($number: Int!){
-      organization(login: "Mindgrove-Technologies"){
-        projectV2(number: $number){
-            items(first: 20) {
-              nodes{
-                id
+#         node(id: $number) {
+#             ...on projectV2{
+#             items(first: 10) {
+#               nodes{
+#                 id
+#                 fieldValueByName(name: "Status") {
+#                   ... on ProjectV2ItemFieldSingleSelectValue {
+#                     name
+#                   }
+#                 }
+#                 fieldValues(first: 8) {
+#                   nodes{
+#                     ... on ProjectV2ItemFieldDateValue {
+#                       date
+#                       field {
+#                         ... on ProjectV2FieldCommon {
+#                           name
+#                         }
+#                       }
+#                     }
+#                   }
+#                 }
+#                 content{
+#                     ... on DraftIssue {
+#                       title
+#                       body
+#                       assignees(first: 10) {
+#                         nodes{
+#                           login
+#                         }
+#                       }
+#                     }
+#                     ...on Issue {
+#                       title
+#                       assignees(first: 10) {
+#                         nodes{
+#                           login
+#                         }
+#                       }
+#                     }
+#                     ...on PullRequest {
+#                       title
+#                       assignees(first: 10) {
+#                         nodes{
+#                           login
+#                         }
+#                       }
+#                     }
+#                 }
+#               }
+#             }
+#         }
+
+#     }
+# """
+query = """
+    query($id: ID!){
+    node(id: $id) {
+        ... on ProjectV2 {
+          items(first: 20) {
+            nodes{
+              id
                 fieldValueByName(name: "Status") {
                   ... on ProjectV2ItemFieldSingleSelectValue {
                     name
@@ -90,17 +147,15 @@ query = """
                       }
                     }
                 }
-              }
             }
+          }
         }
       }
     }
-
-
 """
 
 variables ={
-    "number" : project_number
+    "id" : proj_map[project_name]
 }
 result = run_query(query, variables)    # execute query
 
@@ -110,7 +165,7 @@ print(json.dumps(result, indent=2))
 output_planned = {}
 output_inProgress = {}
 output_completed = {}
-for fields in result['data']['user']['projectV2']['items']['nodes']:
+for fields in result['data']['node']['items']['nodes']:
   d = dict()
   if fields['fieldValueByName']['name'] == "Todo":
     for data in fields['fieldValues']['nodes']:
@@ -138,11 +193,11 @@ for fields in result['data']['user']['projectV2']['items']['nodes']:
     for data in fields['fieldValues']['nodes']:
       if len(data)!=0:
         d[data['field']['name']] = data['date']
-    
+
     # Computing effort variance
-    d["Planned Effort (days)"] = calc_days(d['Planned Start Date'], d['Planned End Date'])
-    d['Actual Effort (days)'] = calc_days(d['Actual Start Date'], d['Actual End Date'])
-    d['Effort variance'] = ((d['Actual Effort (days)'] - d["Planned Effort (days)"])/d["Planned Effort (days)"])*100 
+    d["Planned Effort (days)"] = calc_days(d['Planned Start'], d['Planned End'])
+    d['Actual Effort (days)'] = calc_days(d['Start Date'], d['End Date'])
+    d['Effort variance'] = ((d['Actual Effort (days)'] - d["Planned Effort (days)"])/d["Planned Effort (days)"])*100
     d['Task Name'] = fields['content']['title']
     for employee in fields['content']['assignees']['nodes']:
       if(output_completed.get(employee['login']) == None):
