@@ -1,0 +1,5 @@
+.custom-textarea::placeholder {
+    color: rgb(15, 14, 14); /* Change the color of the placeholder text */
+    font-size: 12px; /* Change the font size of the placeholder text */
+    /* Add any other styles you want to apply to the placeholder text */
+}
