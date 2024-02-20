@@ -5,8 +5,11 @@ from datetime import datetime
 from tabulate import tabulate
 pd.set_option('display.width', 180)
 
-token= "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"
+token= "YOUR_TOKEN"
 
+project_map = {
+  # Project - Node ID Map
+}
 # Employee github username and corresponding Names
 # employee_username_map = { 
 #     "Shrish236": "Shrish",
@@ -35,72 +38,75 @@ def run_query(query, variables):
 
 
 # Get user input for project number
-project_number = int(input("\nEnter project number: "))
+print("Here is a list of your projects:")
+for names in project_map.keys():
+  print(names)
+project_name = input("\nEnter project name: ")
 
 # GraphQL query
 query = """
 
-    query($number: Int!){
-      organization(login: "Mindgrove-Technologies"){
-        projectV2(number: $number){
-            items(first: 20) {
-              nodes{
-                id
-                fieldValueByName(name: "Status") {
-                  ... on ProjectV2ItemFieldSingleSelectValue {
-                    name
-                  }
-                }
-                fieldValues(first: 8) {
-                  nodes{
-                    ... on ProjectV2ItemFieldDateValue {
-                      date
-                      field {
-                        ... on ProjectV2FieldCommon {
-                          name
-                        }
-                      }
+    query($id: ID!){
+        node(id: $id){
+          ... on ProjectV2{
+              items(first: 20) {
+                nodes{
+                  id
+                  fieldValueByName(name: "Status") {
+                    ... on ProjectV2ItemFieldSingleSelectValue {
+                      name
                     }
                   }
-                }
-                content{
-                    ... on DraftIssue {
-                      title
-                      body
-                      assignees(first: 10) {
-                        nodes{
-                          login
+                  fieldValues(first: 8) {
+                    nodes{
+                      ... on ProjectV2ItemFieldDateValue {
+                        date
+                        field {
+                          ... on ProjectV2FieldCommon {
+                            name
+                          }
                         }
                       }
                     }
-                    ...on Issue {
-                      title
-                      assignees(first: 10) {
-                        nodes{
-                          login
+                  }
+                  content{
+                      ... on DraftIssue {
+                        title
+                        body
+                        assignees(first: 10) {
+                          nodes{
+                            login
+                          }
                         }
                       }
-                    }
-                    ...on PullRequest {
-                      title
-                      assignees(first: 10) {
-                        nodes{
-                          login
+                      ...on Issue {
+                        title
+                        assignees(first: 10) {
+                          nodes{
+                            login
+                          }
                         }
                       }
-                    }
+                      ...on PullRequest {
+                        title
+                        assignees(first: 10) {
+                          nodes{
+                            login
+                          }
+                        }
+                      }
+                  }
                 }
               }
-            }
+          }
         }
-      }
     }
 
 
 """
 
 variables ={
-    "number" : project_number
+    "id" : project_map[project_name]
 }
 result = run_query(query, variables)    # execute query
 

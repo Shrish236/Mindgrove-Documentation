@@ -5,7 +5,7 @@ from datetime import datetime
 from tabulate import tabulate
 pd.set_option('display.width', 180)
 
-token= "Enter your token here"
+token= "Your Token"
 
 # Employee github username and corresponding Names
 # employee_username_map = {
@@ -32,6 +32,7 @@ def run_query(query, variables):
         return request.json()
     else:
         raise Exception("Query failed to run by returning code of {}. {}".format(request.status_code, query))
+    
 proj_map=dict()
 def helpq(project_number):
   variables ={

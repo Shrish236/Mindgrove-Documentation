@@ -1,16 +1,23 @@
 # Import packages
-from dash import Dash, html, dash_table, dcc, callback, Output, Input
+from flask import Flask, request
+from dash import Dash, html, dash_table, dcc, callback, Output, Input, State
 import pandas as pd
 import plotly.express as px
+import plotly.figure_factory as ff
 import dash_bootstrap_components as dbc
-import json
+import json, base64, io
+import csv
+
 
 table = ""
+data_format = ""
+graph_list = []
 # Incorporate data
 # df = pd.read_csv('static/Employee.csv')
 
+server = Flask(__name__)
 # Initialize the app
-app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP, 'static/styles.css'], suppress_callback_exceptions=True)
+app = Dash(__name__, server=server, external_stylesheets=[dbc.themes.BOOTSTRAP, 'static/styles.css'], suppress_callback_exceptions=True)
 
 # App layout
 # app.layout = html.Div([
@@ -54,9 +61,6 @@ graph_data_json = html.Div([
         "You can expand the textbox if needed!",
         color="secondary"
     ),
-    html.Div([
-        dbc.Button("Submit", outline=True, color="primary", id='submit-button-json', href='graph-page'),
-    ], className='d-flex justify-content-center p-2 pt-4'),
 ], id='2')
 
 graph_data_local = html.Div([
@@ -65,7 +69,7 @@ graph_data_local = html.Div([
         className="card-text",
     ),
     dcc.Upload(
-        id='upload-data',
+        id='upload-local-csv',
         children=html.Div([
             'Drag and Drop or ',
             html.A('Select Files', className='fst-italic font-decoration-underline')
@@ -87,9 +91,6 @@ graph_data_local = html.Div([
         "Only .csv files are supported!",
         color="danger"
     ),
-    html.Div([
-        dbc.Button("Submit", outline=True, color="primary", id='submit-button-local', href='/graph-page'),
-    ], className='d-flex justify-content-center p-2 pt-4'),
 ], id='1')
 
 graph_data_remote = html.Div([
@@ -99,9 +100,6 @@ graph_data_remote = html.Div([
     ),
     dbc.Input(placeholder="Eg: https://www.drive.google.com/file", type="text", id='remote-link'),
     dbc.FormText("Make sure the file is given open access!", className='text-danger'),
-    html.Div([
-        dbc.Button("Submit", outline=True, color="primary", id='submit-button-remote', href='/graph-page'),
-    ], className='d-flex justify-content-center p-2 pt-4'),
 ], id='3')
 
 home_page_layout = html.Div([
@@ -136,9 +134,9 @@ home_page_layout = html.Div([
                             dbc.Checklist(
                                 id="checklist-selected-style",
                                 options=[
-                                    {"label": "Scatter plot", "value": 1},
-                                    {"label": "Line plot", "value": 2},
-                                    {"label": "Bar graph", "value": 3},
+                                    {"label": "Scatter plot", "value": "Scatter"},
+                                    {"label": "Line plot", "value": "Line"},
+                                    {"label": "Bar graph", "value": "Bar"},
                                 ],
                                 label_checked_style={"color": "red"},
                                 input_checked_style={
@@ -146,12 +144,14 @@ home_page_layout = html.Div([
                                     "borderColor": "#ea6258",
                                 },
                             ),
+                            html.P(id='dummy-tag2'),
+                            html.P(id='dummy-tag3'),
                             dbc.Checklist(
                                 id="checklist-selected-style1",
                                 options=[
-                                    {"label": "Histogram", "value": 4},
-                                    {"label": "Pie chart", "value": 5},
-                                    {"label": "Distplot", "value": 6},
+                                    {"label": "Histogram", "value": "Histogram"},
+                                    {"label": "Pie chart", "value": "Pie"},
+                                    {"label": "Distplot", "value": "Distplot"},
                                 ],
                                 label_checked_style={"color": "red"},
                                 input_checked_style={
@@ -187,6 +187,9 @@ home_page_layout = html.Div([
                                         # dbc.FormText("Make sure the file is given open access!", className='text-danger'),
                                     # ], 
                                     id='data-format'),
+                                    html.Div([
+                                        dbc.Button("Submit", outline=True, color="primary", id='submit-button', href='/graph-page'),
+                                    ], className='d-flex justify-content-center p-2 pt-4'),
                                     
                                 ]
                             ),
@@ -200,6 +203,7 @@ home_page_layout = html.Div([
                     )
                 ], className='d-flex align-items-center h-100'),
                 html.P(id='dummy-tag'),
+                html.P(id='dummy-tag1'),
             ], className='col px-4')
         ], className='row')
     ], className='container min-vh-75 bg-light rounded-1')
@@ -234,15 +238,18 @@ def update_graph(json, csv_local, csv_remote):
     #     fig = px.histogram(df, x=x, y=y, histfunc='avg')
     # if g == 'Scatter':
     #     fig = px.scatter(df, x=x, y=y)
-
+    global data_format
     if(json!=None and json > selection_state[0]):
         selection_state[0] = json
+        data_format = "json"
         return graph_data_json
     if(csv_local!=None and csv_local > selection_state[1]):
         selection_state[1] = csv_local
+        data_format = "local"
         return graph_data_local
     if(csv_remote!=None and csv_remote > selection_state[2]):
         selection_state[2] = csv_remote
+        data_format = "remote"
         return graph_data_remote
     return None
 
@@ -273,19 +280,52 @@ def check_json_data(json_input, valid):
         return False
     return None
 
+@callback(
+        Output('dummy-tag3', 'value'),
+        Input('checklist-selected-style', 'value'),
+        Input('checklist-selected-style1', 'value'),
+)
+def update_graph_list(list1, list2):
+    # print(list1, list2)
+    global graph_list
+    if list1 and len(list1)!=0:
+        for i in list1:
+            if i not in graph_list:
+                graph_list.append(i)
+    if list2 and len(list2)!=0:
+        for i in list2:
+            if i not in graph_list:
+                graph_list.append(i)
+    return None
 
+
+
+def parse_contents(contents, filename, date):
+    content_type, content_string = contents.split(',')
+
+    # define data frame as global
+    decoded = base64.b64decode(content_string)
+    try:
+        if 'csv' in filename:
+            # Assume that the user uploaded a CSV file
+            df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
+            df.to_csv('static/file.csv', index=False)
+
+        elif 'xls' in filename:
+            # Assume that the user uploaded an Excel file
+            df = pd.read_excel(io.BytesIO(decoded))
+
+    except Exception as e:
+        print(e)
+        return html.Div([
+            'There was an error processing this file.'
+        ])
 
 @callback( 
         Output('dummy-tag', 'value'),
-        [
-            Input('submit-button-json', 'n_clicks'), 
-            Input('json-input', 'value'),
-            Input('submit-button-local', 'n_clicks'), 
-            Input('json-input', 'value'),
-            Input('submit-button-remote', 'n_clicks'), 
-            Input('json-input', 'value'),
-        ]
-)
+        Input('submit-button', 'n_clicks'), 
+        Input('json-input', 'value'),
+)  
 def get_json_data(submit, json_input):
     # print(x, y)
     # if g == 'Bar':
@@ -297,13 +337,44 @@ def get_json_data(submit, json_input):
     #     fig = px.histogram(df, x=x, y=y, histfunc='avg')
     # if g == 'Scatter':
     #     fig = px.scatter(df, x=x, y=y)
-
-    if(submit):
+    # print("hello")
+    # print(submit_json, json_input, submit_local, submit_remote, remote_link, contents, filename, last_modified)
+    if(submit and data_format == "json"):
         data = json.loads(json_input)
-        df = pd.DataFrame.from_dict(data['data'])
-        df.to_csv('static/file.csv', index=False)
+        # print(data['data'])
+        for i, j in data['data'].items():
+            print(i, j)
+        # df = pd.DataFrame.from_dict(data['data'])
+        # df.to_csv('static/file.csv', index=False)
+
     return None
 
+@callback(
+    Output('dummy-tag1', 'value'),
+    Input('submit-button', 'n_clicks'),
+    State('upload-local-csv', 'contents'),
+    State('upload-local-csv', 'filename'),
+    State('upload-local-csv', 'last_modified'),
+)
+def get_local_csv(submit, contents, filename, last_modified):
+    if(submit and data_format=="local"):
+        # print("hello")
+        if filename is not None:
+            children = parse_contents(contents, filename, last_modified)
+            return f'{filename} is Uploaded Successfully...'
+    return None
+
+@callback(
+    Output('dummy-tag2', 'value'),
+    Input('submit-button', 'n_clicks'),
+    Input('remote-link', 'value'),
+)
+def get_remote_csv(submit, file):
+    if(submit and data_format=="remote"):
+        # print("hello")
+        df = pd.read_csv(file)
+        df.to_csv('static/file.csv', index=False)
+    return None
 
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
@@ -362,7 +433,7 @@ graph_page = html.Div([
                 html.Div([
                     html.H6('Graphs:'),
                 ]),
-                dcc.RadioItems(['Line', 'Scatter', 'Bar'], 'Line', inline=False, labelStyle={
+                dcc.RadioItems(graph_list, 'Line' if len(graph_list) == 0 else graph_list[0], inline=False, labelStyle={
                     'margin-left': 10,
                     'padding-left': 5,
                     'margin-top':10
@@ -390,6 +461,7 @@ def display_page(pathname):
         Output('x-axis-radio', 'value'),
         Output('y-axis-radio', 'options'),
         Output('y-axis-radio', 'value'),
+        Output('graph-type', 'value')
     ],[
         Input('url', 'pathname'),
     ])
@@ -400,7 +472,7 @@ def display_graph(pathname):
         selected_column_x = columns[0]
         selected_column_y = columns[1]
         # fig = px.line(table, x=selected_column_x, y=selected_column_y, markers=True)
-        return columns, selected_column_x, columns, selected_column_y
+        return columns, selected_column_x, columns, selected_column_y, graph_list[0]
     return None, None, None, None
 
 @callback(
@@ -422,8 +494,20 @@ def change_graph_type(g, x, y):
         fig = px.histogram(table, x=x, y=y, histfunc='avg')
     if g == 'Scatter':
         fig = px.scatter(table, x=x, y=y)
+    if g == 'Pie':
+        fig = px.pie(table, values=y, names=x, hole=.2)
+    if g == 'Distplot':
+        # print(table[y])
+        fig = ff.create_distplot([table[y].values.tolist()], ["data"])
     return fig
+
+
+@server.route('/post-json', methods=['POST'])
+def req():
+    print('Request triggered!')  # For debugging purposes, prints to console
+    print(request.json)
+    return "hbkb"
 
 # Run the app
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run_server(debug=True)
