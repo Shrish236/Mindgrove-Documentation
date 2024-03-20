@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload</title>
+    <link rel= "stylesheet" type= "text/css" href= "{{ url_for('static',filename='styles/styles.css') }}">
+    <!-- Latest compiled and minified CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+
+<!-- jQuery library -->
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.slim.min.js"></script>
+
+<!-- Popper JS -->
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+
+<!-- Latest compiled JavaScript -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body>
+    <div class="bg-secondary p-5 min-vh-100 min-vw-100 align-items-center">
+        <div class="bg-light p-5 h-100 min-vh-75 min-vw-75 rounded-lg">
+
+
+    <div class="text-center">
+    <h2>Upload your Experiment Data into the MySQL database</h2>
+    <p class="lead">Only <b>.csv files</b> are supported!</p>
+    {% if response %}
+    <div class="p-5">
+    <p class="text-success">File Uploaded Successfully! Head over to the graph viewer to view graphs for your data</p>
+    <a href="/" class="btn btn-info" role="button">Graph Viewer</a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Upload  -->
+<center>
+<div class="d-flex w-75 justify-content-center">
+<form id="file-upload-form" action="#" class="uploader" style="height: 100%; width: inherit;" method="post" enctype="multipart/form-data">
+  <input id="file-upload" type="file" name="fileUpload" accept=".csv" style="display: none;"/>
+
+  <label for="file-upload" id="file-drag">
+    <img id="file-image" src="#" alt="Preview" class="hidden">
+    <div id="start">
+      <i class="fa fa-download" aria-hidden="true"></i>
+      <div><p><p style="text-decoration: underline;">Select a file</p></p></div>
+      <div id="notimage" class="hidden">Please select a CSV file</div>
+      <!-- <span id="file-upload-btn" class="btn btn-primary">Select a file</span> -->
+    </div>
+    <div id="column-selection" style="display: none;" class="form-group flex-column p-2">
+        <!-- <label for="exampleInputEmail1">Enter x-axis column for plotting graphs</label> -->
+        <div class="row d-flex flex-column justify-content-center" style="">
+        <div class="col justify-content-center p-2">
+            <div class="d-flex align-items-end justify-content-center">
+              <div class="dropdown mx-2">
+                <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenu2" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  Experiment
+                </button>
+                <div class="dropdown-menu" aria-labelledby="dropdownMenu2">
+                  <button class="dropdown-item" type="button">Action</button>
+                  <button class="dropdown-item" type="button">Another action</button>
+                  <button class="dropdown-item" type="button">Something else here</button>
+                </div>
+              </div>  
+              <div class="d-flex flex-column mx-2">
+              <span class="p-2">Select Experiment Title or Enter a new title</span>           
+              <input type="text" name="experiment-title" class="form-control" id="exampleInputEmail1" aria-describedby="emailHelp" placeholder="Eg: Experiment-1" required>
+              </div>
+            </div>  
+          </div>
+        <div class="col p-2">
+          <div class="d-flex align-items-end justify-content-center">
+            <div class="dropdown mx-2">
+              <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenu2" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                Run
+              </button>
+              <div class="dropdown-menu" aria-labelledby="dropdownMenu2">
+                <button class="dropdown-item" type="button">Action</button>
+                <button class="dropdown-item" type="button">Another action</button>
+                <button class="dropdown-item" type="button">Something else here</button>
+              </div>
+            </div>  
+            <div class="d-flex flex-column mx-2">
+            <span class="p-2">Select Run or enter new Run</span>           
+            <input type="text" name="run-title" class="form-control" id="exampleInputEmail2" aria-describedby="emailHelp" placeholder="Eg: Run-1" required>
+            </div>
+          </div>  
+        </div>
+        </div>
+        <!-- <div class="row justify-content-center p-2">
+            Enter x-axis column for plotting graphs
+            <input type="text" name="x-axis-column" class="form-control" id="exampleInputEmail1" aria-describedby="emailHelp" placeholder="Eg: Column-1" required>
+            <small id="emailHelp" class="form-text text-muted">Remaining columns will be assumed as y-axis data</small>
+        </div> -->
+        <div class="row justify-content-center p-2">
+            <input class="btn btn-primary" type="submit" value="Submit">
+        </div>
+
+    </div>
+    <div id="file-contents" style="display: none;"></div>
+    <div id="response" class="hidden">
+      <div id="messages"></div>
+      <progress class="progress" id="file-progress" value="0">
+        <span>0</span>%
+      </progress>
+    </div>
+  </label>
+  {% if not response %}
+  <small id="emailHelp" class="form-text text-danger">**Ensure that your csv file contains lesser than 20 columns**</small>
+  {% endif %}
+</form>
+</div>
+</center>
+</div>
+</div>
+<script>
+    // File Upload
+// 
+function ekUpload() {
+  function Init() {
+    console.log("Upload Initialised");
+    var fileSelect = document.getElementById('file-upload'),
+        fileDrag = document.getElementById('file-drag'),
+        submitButton = document.getElementById('submit-button');
+
+    fileSelect.addEventListener('change', fileSelectHandler, false);
+
+    // Is XHR2 available?
+    var xhr = new XMLHttpRequest();
+    if (xhr.upload) {
+      // File Drop
+      fileDrag.addEventListener('dragover', fileDragHover, false);
+      fileDrag.addEventListener('dragleave', fileDragHover, false);
+      fileDrag.addEventListener('drop', fileSelectHandler, false);
+    }
+  }
+
+  function fileDragHover(e) {
+    var fileDrag = document.getElementById('file-drag');
+    e.stopPropagation();
+    e.preventDefault();
+    fileDrag.className = (e.type === 'dragover' ? 'hover' : 'modal-body file-upload');
+  }
+
+  function fileSelectHandler(e) {
+    // Fetch FileList object
+    var files = e.target.files || e.dataTransfer.files;
+    // Cancel event and hover styling
+    fileDragHover(e);
+    // Process all File objects
+    for (var i = 0, f; f = files[i]; i++) {
+      parseFile(f);
+    }
+  }
+
+  // Output
+  function output(msg) {
+    var m = document.getElementById('messages');
+    m.innerHTML = msg;
+  }
+
+  function parseFile(file) {
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      var contents = e.target.result;
+      if (file.name.endsWith('.csv')) {
+        displayCSV(contents);
+      } else {
+        output('Please upload a CSV file.');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function displayCSV(contents) {
+    var rows = contents.split('\n');
+    var table = '<table class="table table-bordered">';
+    for (var i = 0; i < rows.length; i++) {
+      var cells = rows[i].split(',');
+      if(i === 0){
+        table += '<thead class="thead-dark">';
+        table += '<tr>';
+        for (var j = 0; j < cells.length; j++) {
+            table += '<th>' + cells[j] + '</th>';
+        }
+        table += '</tr>';
+        table += '</thead>';
+      }
+      else{
+        table += '<tr>';
+      
+        for (var j = 0; j < cells.length; j++) {
+            table += '<td>' + cells[j] + '</td>';
+        }
+
+        table += '</tr>';
+      }
+    }
+    table += '</table>';
+    document.getElementById('file-contents').innerHTML = table;
+    document.getElementById('file-contents').style = "display: inline-block;overflow: auto; width: inherit; height: 40vh;"
+    document.getElementById('column-selection').style = 'display: flex; width:inherit;';
+  }
+
+  // Check for the various File API support.
+  if (window.File && window.FileList && window.FileReader) {
+    Init();
+  } else {
+    document.getElementById('file-drag').style.display = 'none';
+  }
+}
+
+ekUpload();
+
+</script>
+</body>
+</html>
