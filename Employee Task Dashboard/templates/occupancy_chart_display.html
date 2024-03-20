@@ -90,7 +90,21 @@ https://templatemo.com/tm-537-art-factory
                     <div class="left-text col-lg-6 col-md-6 col-sm-12 col-xs-12" data-scroll-reveal="enter left move 30px over 0.6s after 0.4s">
                         <h1>{{ project }} project</h1>
                         <p>Scroll down to view the occupancy level of your employees. You can also view occupancy charts of individual employees for planned tasks by using the filter employee feature!</p>
-                        <a href="#about" class="main-button-slider bg-success">View</a>
+                        <div class="d-flex">
+                        <div class="p-1"><button class="main-button-slider bg-success p-2 px-4" style="color: white; border-radius: 25px;"><a href="#about" style="color: white;">Occupancy chart</a></button></div>
+                            <div class="p-1">
+                                <form id="contact" action="/effort-variance-table#about" method="post">
+                                <input type="text" value="{{ project }}" hidden name="project-title"/>
+                                <button type="submit" class="main-button-slider bg-warning p-2 px-4" style="color: white; border-radius: 25px;">Effort Variance</button>
+                                </form>
+                            </div>
+                            <div class="p-1">
+                                <form id="contact" action="/occupancy-chart" method="post">
+                                    <input type="text" value="{{ project }}" hidden name="project-title"/>
+                                    <button type="submit" class="main-button-slider bg-info p-2 px-4" style="color: white; border-radius: 25px;">Dependency chart</button>
+                                </form>
+                            </div>
+                        </div>
                     </div>
                     <div class="col-lg-6 col-md-6 col-sm-12 col-xs-12" data-scroll-reveal="enter right move 30px over 0.6s after 0.4s">
                         <img src="{{ url_for('static',filename='assets/images/occupancy-chart-3.png') }}" class="rounded img-fluid d-block mx-auto" alt="First Vector Graphic">

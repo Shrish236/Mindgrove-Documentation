@@ -11,8 +11,10 @@
 
     <title>Employee Analysis</title>
     <style>
-        table, tr, th, td {
-         padding: 20vw;
+        .nav{
+            .active a{
+                color: green;
+            }
         }
     </style>
 <!--
@@ -54,7 +56,7 @@ https://templatemo.com/tm-537-art-factory
                         <!-- ***** Logo End ***** -->
                         <!-- ***** Menu Start ***** -->
                         <ul class="nav">
-                            <li class="scroll-to-section"><a href="/effort-variance-form" class="active">Effort Variance</a></li>
+                            <li class="scroll-to-section"><a href="/occupancy-chart-form" class="active">Occupancy Chart</a></li>
                             <li class="scroll-to-section"><a href="/#about">About</a></li>
                             <li class="scroll-to-section"><a href="/#services">Features</a></li>
                             <li class="scroll-to-section"><a href="/#frequently-question">Frequently Asked Questions</a></li>
@@ -79,40 +81,39 @@ https://templatemo.com/tm-537-art-factory
         </div>
     </header>
     <!-- ***** Header Area End ***** -->
-    <div class="welcome-area" id="welcome" style="background-image: url(../static/assets/images/effort_variance_table.png)">
+    <div class="welcome-area" id="welcome" style="background-image: url(../static/assets/images/occupancy_chart_bg.jpg)">
 
         <!-- ***** Header Text Start ***** -->
         <div class="header-text">
             <div class="container pt-5">
                 <div class="row pt-5 pt-sm-5 pt-md-5 pt-lg-5 pt-xl-5">
                     <div class="left-text col-lg-6 col-md-6 col-sm-12 col-xs-12" data-scroll-reveal="enter left move 30px over 0.6s after 0.4s">
-                        <h1>View project data in {{ name }}</h1>
-                        <p>Note that rows containing incomplete Planned and Actual dates are not displayed. Use the email feature to notify your employees!</p>
+                        <h1>{{ project }} project</h1>
+                        <p>The task dependencies in the project are displayed as a graph here -></p>
                         <div class="d-flex">
-                            <div class="p-1"><button class="main-button-slider bg-success p-2 px-4" style="color: white; border-radius: 25px;"><a href="#about" style="color: white;">Effort Variance</a></button></div>
+                        <div class="p-1"><button class="main-button-slider bg-success p-2 px-4" style="color: white; border-radius: 25px;"><a href="#" style="color: white;">Dependency Chart</a></button></div>
                             <div class="p-1">
-                                <form id="contact" action="/occupancy-chart#about" method="post">
-                                <input type="text" value="{{ name }}" hidden name="project-title"/>
-                                <button type="submit" class="main-button-slider bg-warning p-2 px-4" style="color: white; border-radius: 25px;">Occupancy chart</button>
+                                <form id="contact" action="/effort-variance-table#about" method="post">
+                                <input type="text" value="{{ project }}" hidden name="project-title"/>
+                                <button type="submit" class="main-button-slider bg-warning p-2 px-4" style="color: white; border-radius: 25px;">Effort Variance</button>
                                 </form>
                             </div>
                             <div class="p-1">
-                                <form id="contact" action="/dependency-chart" method="post">
-                                    <input type="text" value="{{ name }}" hidden name="project-title"/>
-                                    <button type="submit" class="main-button-slider bg-info p-2 px-4" style="color: white; border-radius: 25px;">Dependency chart</button>
+                                <form id="contact" action="/occupancy-chart" method="post">
+                                    <input type="text" value="{{ project }}" hidden name="project-title"/>
+                                    <button type="submit" class="main-button-slider bg-info p-2 px-4" style="color: white; border-radius: 25px;">Occupancy Chart</button>
                                 </form>
                             </div>
-                        
                         </div>
                     </div>
-                    <div class="col-lg-6 col-md-6 col-sm-12 col-xs-12" data-scroll-reveal="enter right move 30px over 0.6s after 0.4s">
-                        <img src="{{ url_for('static',filename='assets/images/effort-variance-table-right.png') }}" class="rounded img-fluid d-block mx-auto" alt="First Vector Graphic">
+                    <div class="col-lg-6 col-md-6 col-sm-12 col-xs-12" data-scroll-reveal="enter right move 30px over 0.6s after 0.4s" id="graph-container">
+                        <img src='data:image/png;base64,{{ data }}' class="w-100 h-100"/>
                     </div>
                 </div>
             </div>
         </div>
         <!-- ***** Header Text End ***** -->
-    </div>
+    <!-- </div> -->
 
     
 
@@ -120,145 +121,78 @@ https://templatemo.com/tm-537-art-factory
     <!-- ***** Features Big Item Start ***** -->
     <section class="section" id="about">
         <div class="container">
-            <div class="row justify-content-around" >
-                {% if planned %}
-                <div class="row justify-content-center align-items-center overflow-auto mb-4">
-                    <h4 class="text-center p-2">Tasks Planned</h4>
-                    <table class="table table-striped table-bordered table-hover table-responsive-md">
-                        <thead class="thead-dark">
-                            <tr>
-                                <th scope="col">S. No</th>
-                                <th scope="col">Person</th>
-                                <th scope="col">Task Name</th>
-                                <th scope="col">Planned Start</th>
-                                <th scope="col">Planned End</th>
-                                <th scope="col">Dependency</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for row in planned %}
-                            <tr class="p-2">
-                                <th scope="row" class="p-2 text-center">{{ row['S.No'] }}</th>
-                                <td class="p-2">
-                                    <div>
-                                        <form id="contact" action="/occupancy-chart#services" method="post">
-                                            <input type="text" value="{{ name }}" hidden name="project-title"/>
-                                            <input type="text" value="{{ row['Person'] }}" hidden name="employee-name"/>
-                                            <button type="submit" class="p-2 px-4 w-100 h-100" style="border: none; border-radius: 15px; background-color: transparent; text-decoration: underline;">{{ row['Person'] }}</button>
-                                        </form>
-                                    </div>
-                                </td>
-                                <td class="p-2">
-                                    {{ row['Task Name'] }}
-                                </td>
-                                <td class="p-2">{{ row['Planned Start'] }}</td>
-                                <td class="p-2">{{ row['Planned End'] }}</td>
-                                <td class="p-2">{{ row['Dependency'] }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div> 
+            <!-- <div class="row justify-content-center">
+                {% if iframe %}
+                <h4 class="text-center p-2">The following graph shows the current occupancy level of the employees assigned in {{ project }}</h4>
+                <div class="overflow-auto w-100 h-100 p-4">
+                    {{ iframe|safe }}
+                </div>
                 {% else %}
-                <h4 class="text-center p-2">No Planned Tasks found</h4>
+                <h4 class="text-center p-2">No in progress tasks found in {{ project }} project</h4>
                 {% endif %}
-                {% if in_progress %}
-                <div class="row justify-content-center align-items-center overflow-auto my-4">
-                    <h4 class="text-center p-2">Tasks in Progress</h4>
-                    <table class="table table-striped table-bordered table-hover table-responsive-md">
-                        <thead class="thead-dark">
-                            <tr>
-                                <th scope="col">S. No</th>
-                                <th scope="col">Person</th>
-                                <th scope="col">Task Name</th>
-                                <th scope="col">Planned Start</th>
-                                <th scope="col">Planned End</th>
-                                <th scope="col">Actual Start</th>
-                                <th scope="col">Dependency</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for row in in_progress %}
-                            <tr class="p-2">
-                                <th scope="row" class="p-2 text-center">{{ row['S.No'] }}</th>
-                                <td class="p-2">
-                                    <div>
-                                        <form id="contact" action="/occupancy-chart#services" method="post">
-                                            <input type="text" value="{{ name }}" hidden name="project-title"/>
-                                            <input type="text" value="{{ row['Person'] }}" hidden name="employee-name"/>
-                                            <button type="submit" class="p-2 px-4 w-100 h-100" style="border: none; border-radius: 15px; background-color: transparent; text-decoration: underline;">{{ row['Person'] }}</button>
-                                        </form>
-                                    </div>
-                                </td>
-                                <td class="p-2">{{ row['Task Name'] }}</td>
-                                <td class="p-2">{{ row['Planned Start'] }}</td>
-                                <td class="p-2">{{ row['Planned End'] }}</td>
-                                <td class="p-2">{{ row['Actual Start'] }}</td>
-                                <td class="p-2">{{ row['Dependency'] }}</td>
-                            </tr>
+            </div>
+            <div class="row justify-content-center">
+                {% if employees %}
+                <h4 class="text-center p-2">View individual employee occupancy for planned tasks by using the filter feature</h4>
+                <div class="contact-form p-4 my-4 align-items-center">
+                    <div class="card" style="width: 100%;">
+                        <div class="card-body" style="overflow-y: scroll; height: 50vh;">
+                          <h5 class="card-title">Employees</h5>
+                          <h6 class="card-subtitle mb-4 text-muted">Here is a list of all your employees in {{ project }} project</h6>
+                          <ul class="list-group">
+                            {% for i in employees %}
+                            <li class="list-group-item">{{ i }}</li>
                             {% endfor %}
-                        </tbody>
-                    </table>
-                </div> 
+                          </ul>
+                        </div>
+                      </div>
+                    <div class="text-center p-5"><h4 class="text-light">Select your employee below</h4></div>
+                    <form id="contact" action="#services" method="post">
+                      <div class="col">
+                        <div class="form-group">
+                             <select class="form-control" id="exampleFormControlSelect1" name="employee-name">
+                              {% for i in employees %}
+                                <option value="{{ i }}">{{ i }}</option>
+                              {% endfor %}
+                            </select>
+                          </div>
+                        <div class="col-lg-12">
+                          <fieldset>
+                            <button type="submit" id="form-submit" class="main-button">Submit</button>
+                          </fieldset>
+                        </div>
+                      </div>
+                    </form>
+                </div>
                 {% else %}
-                <h4 class="text-center p-2">No Tasks in progress found</h4>
+                <h4 class="text-center p-2">No employees found in {{ project }} project</h4>
                 {% endif %}
-                {% if completed %}
-                <div class="row justify-content-center align-items-center overflow-auto my-4">
-                    <h4 class="text-center p-2">Tasks Completed</h4>
-                    <table class="table table-striped table-bordered table-hover table-responsive-md">
-                        <thead class="thead-dark">
-                            <tr>
-                                <th scope="col">S. No</th>
-                                <th scope="col">Person</th>
-                                <th scope="col">Task Name</th>
-                                <th scope="col">Planned Start</th>
-                                <th scope="col">Planned End</th>
-                                <th scope="col">Actual Start</th>
-                                <th scope="col">Actual End</th>
-                                <!-- <th scope="col">Planned Effort (days)</th>
-                                <th scope="col">Actual Effort (days)</th> -->
-                                <th scope="col">Effort Variance</th>
-                                <th scope="col">Dependency</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for row in completed %}
-                            <tr class="p-2">
-                                <th scope="row" class="p-2 text-center">{{ row['S.No'] }}</th>
-                                <td class="p-2">
-                                    <div>
-                                        <form id="contact" action="/occupancy-chart#services" method="post">
-                                            <input type="text" value="{{ name }}" hidden name="project-title"/>
-                                            <input type="text" value="{{ row['Person'] }}" hidden name="employee-name"/>
-                                            <button type="submit" class="p-2 px-4 w-100 h-100" style="border: none; border-radius: 15px; background-color: transparent; text-decoration: underline;">{{ row['Person'] }}</button>
-                                        </form>
-                                    </div>
-                                </td>
-                                <td class="p-2">{{ row['Task Name'] }}</td>
-                                <td class="p-2">{{ row['Planned Start'] }}</td>
-                                <td class="p-2">{{ row['Planned End'] }}</td>
-                                <td class="p-2">{{ row['Actual Start'] }}</td>
-                                <td class="p-2">{{ row['Actual End'] }}</td>
-                                <!-- <td class="p-2">{{ row['Planned Effort (days)'] }}</td>
-                                <td class="p-2">{{ row['Actual Effort (days)'] }}</td> -->
-                                <td class="p-2">{{ row['Effort variance'] }}</td>
-                                <td class="p-2">{{ row['Dependency'] }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div> 
-                {% else %}
-                <h4 class="text-center p-2">No Completed Tasks found</h4>
-                {% endif %}
+            </div> 
             </div>
             <div class="row">
                 <div class="col-lg-12">
                     <div class="hr"></div>
                 </div>
-            </div>
+            </div> -->
+            <!-- <div class="container justify-content-center">
+                <div class="row">
+                    <div class="col-lg-7 col-md-12 col-sm-12">
+                        <p class="copyright">Copyright &copy; 2024 <a rel="nofollow" href="https://www.mindgrovetech.in/">Mindgrove Technologies </a>
+                        </p>
+                    </div> -->
+                    <!-- <div class="col-lg-5 col-md-12 col-sm-12">
+                        <ul class="social">
+                            <li><a href="#"><i class="fa fa-facebook"></i></a></li>
+                            <li><a href="#"><i class="fa fa-twitter"></i></a></li>
+                            <li><a href="#"><i class="fa fa-linkedin"></i></a></li>
+                            <li><a href="#"><i class="fa fa-rss"></i></a></li>
+                            <li><a href="#"><i class="fa fa-dribbble"></i></a></li>
+                        </ul>
+                    </div> -->
+                <!-- </div>
+            </div> -->
         </div>
+        
     </section>
     <!-- ***** Features Big Item End ***** -->
 
@@ -306,70 +240,22 @@ https://templatemo.com/tm-537-art-factory
 
 
     <!-- ***** Features Small Start ***** -->
-    <!-- <section class="section" id="services">
+    <!-- {% if employee %}
+    <section class="section" id="services">
         <div class="container">
-            <div class="row">
-                <div class="owl-carousel owl-theme">
-                    <div class="item service-item">
-                        <div class="icon">
-                            <i><img src="{{ url_for('static',filename='assets/images/service-icon-01.png') }}" alt=""></i>
-                        </div>
-                        <h5 class="service-title">Employee Effort Variance</h5>
-                        <p>View employee effort variance based on the number of days taken to complete a task</p>
-                        <a href="#" class="main-button">View Data</a>
-                    </div>
-                    <div class="item service-item">
-                        <div class="icon">
-                            <i><img src="{{ url_for('static',filename='assets/images/service-icon-02.png') }}" alt=""></i>
-                        </div>
-                        <h5 class="service-title">Employee Occupancy Chart</h5>
-                        <p>View employee occupancy based on the number of tasks planned in the future</p>
-                        <a href="#" class="main-button">Occupancy</a>
-                    </div>
-                    <div class="item service-item">
-                        <div class="icon">
-                            <i><img src="{{ url_for('static',filename='assets/images/service-icon-03.png') }}" alt=""></i>
-                        </div>
-                        <h5 class="service-title">Analysis Dashboard</h5>
-                        <p>View the dynamic and colorful employee dashboard designed using Tableau</p>
-                        <a href="#" class="main-button">Dashboard</a>
-                    </div>
-                    <div class="item service-item">
-                        <div class="icon">
-                            <i><img src="{{ url_for('static',filename='assets/images/service-icon-02.png') }}" alt=""></i>
-                        </div>
-                        <h5 class="service-title">Task Dependency</h5>
-                        <p>Are your tasks getting delayed due to previously assigned tasks? Click here to view the task dependency graph for a project</p>
-                        <a href="#" class="main-button">Dependency</a>
-                    </div>
-                    <div class="item service-item">
-                        <div class="icon">
-                            <i><img src="{{ url_for('static',filename='assets/images/service-icon-01.png') }}" alt=""></i>
-                        </div>
-                        <h5 class="service-title">Email Notification</h5>
-                        <p>Employees not filling task details? Click here to send an email notification to the employees assigned in a particular project</p>
-                        <a href="#" class="main-button">Notification</a>
-                    </div>
-                    <div class="item service-item">
-                        <div class="icon">
-                            <i><img src="{{ url_for('static',filename='assets/images/service-icon-03.png') }}" alt=""></i>
-                        </div>
-                        <h5 class="service-title">MySQL Experiment Database</h5>
-                        <p>Want to visuzalize your test data? Click here to upload data into the MySQL database and visualize it in our graph viewer</p>
-                        <a href="#" class="main-button">Upload / Edit</a>
-                    </div> -->
-                    <!-- <div class="item service-item">
-                        <div class="icon">
-                            <i><img src="{{ url_for('static',filename='assets/images/service-icon-01.png') }}" alt=""></i>
-                        </div>
-                        <h5 class="service-title">Seventh Title Box</h5>
-                        <p>Sed a consequat velit. Morbi lectus sapien, vestibulum et sapien sit amet, ultrices malesuada odio. Donec non quam.</p>
-                        <a href="#" class="main-button">Read More</a>
-                    </div> -->
-                <!-- </div>
+            <div class="row text-center">
+                {% if iframe2 %}
+                <h4 class="text-center p-2 text-light">The following graph shows the planned occupancy of {{ employee }}</h4>
+                <div class="overflow-auto w-100 h-100 p-4">
+                    {{ iframe2|safe }}
+                </div>
+                {% else %}
+                <h4 class="text-center p-2">No planned tasks found for {{ employee }}</h4>
+                {% endif %}
             </div>
         </div>
-    </section> -->
+    </section>
+    {% endif %} -->
     <!-- ***** Features Small End ***** -->
 
 
@@ -390,8 +276,8 @@ https://templatemo.com/tm-537-art-factory
                 </div>
             </div> -->
             <!-- ***** Section Title End ***** -->
-
-            <!-- <div class="row">
+<!-- 
+            <div class="row">
                 <div class="left-text col-lg-6 col-md-6 col-sm-12">
                     <h5>What is Effort Variance and how is it calculated?</h5>
                     <div class="accordion-text">
@@ -430,9 +316,8 @@ https://templatemo.com/tm-537-art-factory
                                     <p>In the occupancy charts feature, on entering a project name, the user can view an employees occupancy in the coming months, which is estimated using the Planned Tasks in the github projects dashboard. -->
                                     <!-- <br><br>
                                     Praesent ut placerat turpis, vel pellentesque dolor. Sed rutrum eleifend tortor, eu luctus orci sagittis in. In blandit fringilla mollis.</p>
-                                    --> 
-                                <!-- </div>
-                            </div>
+                                    </div> -->
+                            <!-- </div>
                         </article>
                         <article class="accordion">
                             <div class="accordion-head">
@@ -442,13 +327,12 @@ https://templatemo.com/tm-537-art-factory
                                 </span>
                             </div>
                             <div class="accordion-body">
-                                <div class="content">
-                                    <p>Dynamic dashboards created using Tableau contain project details obtained from the github projects board. The dashboards shows a colorful and graphical representation of the data available. -->
+                                <div class="content"> -->
+                                    <!-- <p>Dynamic dashboards created using Tableau contain project details obtained from the github projects board. The dashboards shows a colorful and graphical representation of the data available. -->
                                     <!-- <br><br>
                                     Etiam et enim finibus, feugiat massa efficitur, finibus sapien. Sed cursus lacus quis arcu scelerisque, eget ornare risus maximus. Aenean non lectus id odio rhoncus pharetra.</p>
-                                    --> 
-                                <!-- </div>
-                            </div>
+                                    </div> -->
+                            <!-- </div>
                         </article>
                         <article class="accordion">
                             <div class="accordion-head">
@@ -462,9 +346,8 @@ https://templatemo.com/tm-537-art-factory
                                     <p>Some employees may not have entered the planned and actual dates in the github projects board. To send an email notification and remind them about the incomplete data, access the email feature and enter the project name. The assignees of that project with incomplete fields will receive an email notification. -->
                                     <!-- <br><br>
                                     Aenean fermentum eget turpis egestas semper. Sed finibus mollis venenatis. Praesent at sem in massa iaculis pharetra.</p>
-                                    --> 
-                                <!-- </div>
-                            </div>
+                                    </div> -->
+                            <!-- </div>
                         </article>
                         <article class="accordion">
                             <div class="accordion-head">
@@ -555,25 +438,9 @@ https://templatemo.com/tm-537-art-factory
 
     
     <!-- ***** Footer Start ***** -->
-    <footer>
-        <div class="container justify-content-center">
-            <div class="row">
-                <div class="col-lg-7 col-md-12 col-sm-12">
-                    <p class="copyright">Copyright &copy; 2024 <a rel="nofollow" href="https://www.mindgrovetech.in/">Mindgrove Technologies </a>
-                    </p>
-                </div>
-                <!-- <div class="col-lg-5 col-md-12 col-sm-12">
-                    <ul class="social">
-                        <li><a href="#"><i class="fa fa-facebook"></i></a></li>
-                        <li><a href="#"><i class="fa fa-twitter"></i></a></li>
-                        <li><a href="#"><i class="fa fa-linkedin"></i></a></li>
-                        <li><a href="#"><i class="fa fa-rss"></i></a></li>
-                        <li><a href="#"><i class="fa fa-dribbble"></i></a></li>
-                    </ul>
-                </div> -->
-            </div>
-        </div>
-    </footer>
+    <!-- <footer>
+        
+    </footer> -->
     
     <!-- jQuery -->
     <script src="{{ url_for('static',filename='assets/js/jquery-2.1.0.min.js') }}"></script>
@@ -591,6 +458,5 @@ https://templatemo.com/tm-537-art-factory
     
     <!-- Global Init -->
     <script src="{{ url_for('static',filename='assets/js/custom.js') }}"></script>
-
   </body>
 </html>

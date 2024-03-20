@@ -1,14 +1,20 @@
 from flask import Flask, render_template, request, session
 import requests
 import pandas as pd
+import base64
+from io import BytesIO
 import json
 import plotly.express as px
+import pydot
+from networkx.drawing.nx_pydot import to_pydot
 from datetime import datetime
 from tabulate import tabulate
 import smtplib, ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.utils import formataddr
+import networkx as nx
+import matplotlib.pyplot as plt
 
 app = Flask(__name__)
 app.secret_key = 'any random string'
@@ -26,6 +32,234 @@ employee_email_IDs = {                              # Add email ID's of employee
     # "RohitSrinivasRG" : "rohit@mindgrovetech.in",
     #  "maheswaransg" : "umamaheswaran@mindgrovetech.in"
 }
+
+def get_data(project_name, email=False, dependency=False):
+    query = """
+            query($id: ID!){
+                node(id: $id){
+                ... on ProjectV2{
+                        items(first: 20) {
+                        nodes{
+                            fieldValueByName(name: "Status") {
+                            ... on ProjectV2ItemFieldSingleSelectValue {
+                                name
+                            }
+                            }
+                            fieldValues(first: 8) {
+                            nodes{
+                                ... on ProjectV2ItemFieldDateValue {
+                                date
+                                field {
+                                    ... on ProjectV2FieldCommon {
+                                    name
+                                    }
+                                }
+                                }
+                                ... on ProjectV2ItemFieldTextValue {
+                                text
+                                field {
+                                    ... on ProjectV2FieldCommon {
+                                    name
+                                    }
+                                }
+                                }
+
+                            }
+                            }
+                            content{
+                                ... on DraftIssue {
+                                title
+                                body
+                                id
+                                assignees(first: 10) {
+                                    nodes{
+                                    login
+                                    }
+                                }
+                                }
+                                ...on Issue {
+                                title
+                                id
+                                assignees(first: 10) {
+                                    nodes{
+                                    login
+                                    }
+                                }
+                                }
+                                ...on PullRequest {
+                                title
+                                id
+                                assignees(first: 10) {
+                                    nodes{
+                                    login
+                                    }
+                                }
+                                }
+                            }
+                        }
+                        }
+
+                    }
+                }
+            }
+        """
+    variables ={
+            "id" : project_map[project_name]['id']
+    }
+    result = run_query(query, variables) 
+        # print(json.dumps(result, indent=2))
+        # print(request.form['project-title'])
+    output_planned = {}
+    planned = []
+    output_inProgress = {}
+    in_progress = []
+    output_completed = {}
+    completed = []
+    dependency_map = {}
+    for fields in result['data']['node']['items']['nodes']:
+            d = dict()
+            if fields['fieldValueByName']!=None:
+                if fields['fieldValueByName']['name'] == "Todo":
+                    d['Task Name'] = fields['content']['title']
+                    for data in fields['fieldValues']['nodes']:
+                        if len(data)!=0:
+                            if(data.get('date')!=None):
+                                d[data['field']['name']] = data['date']
+                            if(data.get('text')!=None and data['field']['name'] == 'Dependency'):
+                                d[data['field']['name']] = data['text']
+                                dependencies = data['text']
+                                temp = [x.strip() for x in dependencies.split(',')]
+                                dependency_map[d['Task Name']] = temp
+
+                    if(d.get('Planned Start')==None or d.get('Planned End')==None):
+                        for employee in fields['content']['assignees']['nodes']:
+                            subject = "Update task details"
+                            message_text = f"""\
+
+                                    Hi there @{employee['login']},
+
+                                    Please fill the planned dates in the {project_name} Project in Mingrove-Technologies Project Board.
+
+                                    Task Title: {d['Task Name']}
+
+                                """
+                            message_html = f"""\
+
+                                    Hi there <b>@{employee['login']}</b>,<br/><br/>
+
+                                    Please fill the planned dates in the <b>{project_name}</b> Project in <a href={project_map[project_name]['url']}><i>Mingrove-Technologies Project Board</i></a><br/><br/>
+
+                                    <b>Task Title:</b> {d['Task Name']}<br/>
+                                    <b>Assignee:</b> {employee['login']}<br/>
+
+                                """
+                            if email:
+                                callemail(employee['login'], message_text, message_html, subject)
+                    else:
+                        for employee in fields['content']['assignees']['nodes']:
+                            if(output_planned.get(employee['login']) == None):
+                                output_planned[employee['login']] = [d]
+                            else:
+                                output_planned[employee['login']].append(d)
+
+                if fields['fieldValueByName']['name'] == "In Progress":
+                    d['Task Name'] = fields['content']['title']
+                    for data in fields['fieldValues']['nodes']:
+                        if len(data)!=0:
+                            if(data.get('date')!=None):
+                                d[data['field']['name']] = data['date']
+                            if(data.get('text')!=None and data['field']['name'] == 'Dependency'):
+                                d[data['field']['name']] = data['text']
+                                dependencies = data['text']
+                                temp = [x.strip() for x in dependencies.split(',')]
+                                dependency_map[d['Task Name']] = temp
+
+                    if(d.get('Planned Start')==None or d.get('Planned End')==None or d.get('Actual Start')==None):
+                        for employee in fields['content']['assignees']['nodes']:
+                            subject = "Update task details"
+                            message_text = f"""\
+
+                                    Hi there @{employee['login']},
+
+                                    Please fill the planned/actual dates in the {project_name} Project in Mingrove-Technologies Project Board.
+
+                                    Task Title: {d['Task Name']}
+
+                                """
+                            message_html = f"""\
+
+                                    Hi there <b>@{employee['login']}</b>,<br/><br/>
+
+                                    Please fill the planned/actual dates in the <b>{project_name}</b> Project in <a href={project_map[project_name]['url']}><i>Mingrove-Technologies Project Board</i></a><br/><br/>
+
+                                    <b>Task Title:</b> {d['Task Name']}<br/>
+                                    <b>Assignee:</b> {employee['login']}<br/>
+
+                                """
+                            if email:
+                                callemail(employee['login'], message_text, message_html, subject)
+                    else:
+                        for employee in fields['content']['assignees']['nodes']:
+                            if(output_inProgress.get(employee['login']) == None):
+                                output_inProgress[employee['login']] = [d]
+                            else:
+                                output_inProgress[employee['login']].append(d)
+
+                if fields['fieldValueByName']['name'] == "Done":
+                    d['Task Name'] = fields['content']['title']
+                    for data in fields['fieldValues']['nodes']:
+                        if len(data)!=0:
+                            if(data.get('date')!=None):
+                                d[data['field']['name']] = data['date']
+                            if(data.get('text')!=None and data['field']['name'] == 'Dependency'):
+                                d[data['field']['name']] = data['text']
+                                dependencies = data['text']
+                                temp = [x.strip() for x in dependencies.split(',')]
+                                dependency_map[d['Task Name']] = temp
+
+                        # Computing effort variance
+
+                    if(d.get('Planned Start')==None or d.get('Planned End')==None or d.get('Actual Start')==None or d.get('Actual End')==None):
+                        for employee in fields['content']['assignees']['nodes']:
+                            subject = "Update task details"
+                            message_text = f"""\
+                                    Hi there @{employee['login']},
+
+                                    Please fill the planned/actual dates in the {project_name} Project in Mingrove-Technologies Project Board.
+
+                                    Task Title: {d['Task Name']}
+
+                                """
+                            message_html = f"""\
+
+                                    Hi there <b>@{employee['login']}</b>,<br/><br/>
+
+                                    Please fill the planned/actual dates in the <b>{project_name}</b> Project in <a href={project_map[project_name]['url']}><i>Mingrove-Technologies Project Board</i></a><br/><br/>
+
+                                    <b>Task Title:</b> {d['Task Name']}<br/>
+                                    <b>Assignee:</b> {employee['login']}<br/>
+
+                                """
+                            if email:
+                                callemail(employee['login'], message_text, message_html, subject)
+
+                    else:
+                        
+                        d["Planned Effort (days)"] = calc_days(d['Planned Start'], d['Planned End'])
+                        d['Actual Effort (days)'] = calc_days(d['Actual Start'], d['Actual End'])
+                        if(d['Planned Effort (days)'] == 0):
+                            d["Planned Effort (days)"] = 1
+                        if(d['Actual Effort (days)'] == 0):
+                            d['Actual Effort (days)'] = 1
+                        d['Effort variance'] = ((d['Actual Effort (days)'] - d["Planned Effort (days)"])/d["Planned Effort (days)"])*100
+                        for employee in fields['content']['assignees']['nodes']:
+                            if(output_completed.get(employee['login']) == None):
+                                output_completed[employee['login']] = [d]
+                            else:
+                                output_completed[employee['login']].append(d)
+    if dependency:
+        return dependency_map
+    return output_planned, output_inProgress, output_completed
 
 def callemail(name, message_text, message_html, subject):
     port = 465                                      # For SSL
@@ -144,227 +378,8 @@ def effort_variance_form():
 def effort_variance_display():
     if request.method == 'POST':
         project_name = request.form['project-title']
-        query = """
-            query($id: ID!){
-                node(id: $id){
-                ... on ProjectV2{
-                        items(first: 20) {
-                        nodes{
-                            fieldValueByName(name: "Status") {
-                            ... on ProjectV2ItemFieldSingleSelectValue {
-                                name
-                            }
-                            }
-                            fieldValues(first: 8) {
-                            nodes{
-                                ... on ProjectV2ItemFieldDateValue {
-                                date
-                                field {
-                                    ... on ProjectV2FieldCommon {
-                                    name
-                                    }
-                                }
-                                }
-                                ... on ProjectV2ItemFieldTextValue {
-                                text
-                                field {
-                                    ... on ProjectV2FieldCommon {
-                                    name
-                                    }
-                                }
-                                }
-
-                            }
-                            }
-                            content{
-                                ... on DraftIssue {
-                                title
-                                body
-                                id
-                                assignees(first: 10) {
-                                    nodes{
-                                    login
-                                    }
-                                }
-                                }
-                                ...on Issue {
-                                title
-                                id
-                                assignees(first: 10) {
-                                    nodes{
-                                    login
-                                    }
-                                }
-                                }
-                                ...on PullRequest {
-                                title
-                                id
-                                assignees(first: 10) {
-                                    nodes{
-                                    login
-                                    }
-                                }
-                                }
-                            }
-                        }
-                        }
-
-                    }
-                }
-            }
-        """
-        variables ={
-            "id" : project_map[project_name]['id']
-        }
-        result = run_query(query, variables) 
-        # print(json.dumps(result, indent=2))
-        # print(request.form['project-title'])
-        output_planned = {}
-        planned = []
-        output_inProgress = {}
-        in_progress = []
-        output_completed = {}
-        completed = []
-        dependency_map = {}
-        for fields in result['data']['node']['items']['nodes']:
-            d = dict()
-            if fields['fieldValueByName']!=None:
-                if fields['fieldValueByName']['name'] == "Todo":
-                    d['Task Name'] = fields['content']['title']
-                    for data in fields['fieldValues']['nodes']:
-                        if len(data)!=0:
-                            if(data.get('date')!=None):
-                                d[data['field']['name']] = data['date']
-                            if(data.get('text')!=None and data['field']['name'] == 'Dependency'):
-                                d[data['field']['name']] = data['text']
-                                dependencies = data['text']
-                                temp = [x.strip() for x in dependencies.split(',')]
-                                dependency_map[d['Task Name']] = temp
-
-                    if(d.get('Planned Start')==None or d.get('Planned End')==None):
-                        for employee in fields['content']['assignees']['nodes']:
-                            subject = "Update task details"
-                            message_text = f"""\
-
-                                    Hi there @{employee['login']},
-
-                                    Please fill the planned dates in the {project_name} Project in Mingrove-Technologies Project Board.
-
-                                    Task Title: {d['Task Name']}
-
-                                """
-                            message_html = f"""\
-
-                                    Hi there <b>@{employee['login']}</b>,<br/><br/>
-
-                                    Please fill the planned dates in the <b>{project_name}</b> Project in <a href={project_map[project_name]['url']}><i>Mingrove-Technologies Project Board</i></a><br/><br/>
-
-                                    <b>Task Title:</b> {d['Task Name']}<br/>
-                                    <b>Assignee:</b> {employee['login']}<br/>
-
-                                """
-                            # callemail(employee['login'], message_text, message_html, subject)
-                    else:
-                        for employee in fields['content']['assignees']['nodes']:
-                            if(output_planned.get(employee['login']) == None):
-                                output_planned[employee['login']] = [d]
-                            else:
-                                output_planned[employee['login']].append(d)
-
-                if fields['fieldValueByName']['name'] == "In Progress":
-                    d['Task Name'] = fields['content']['title']
-                    for data in fields['fieldValues']['nodes']:
-                        if len(data)!=0:
-                            if(data.get('date')!=None):
-                                d[data['field']['name']] = data['date']
-                            if(data.get('text')!=None and data['field']['name'] == 'Dependency'):
-                                d[data['field']['name']] = data['text']
-                                dependencies = data['text']
-                                temp = [x.strip() for x in dependencies.split(',')]
-                                dependency_map[d['Task Name']] = temp
-
-                    if(d.get('Planned Start')==None or d.get('Planned End')==None or d.get('Actual Start')==None):
-                        for employee in fields['content']['assignees']['nodes']:
-                            subject = "Update task details"
-                            message_text = f"""\
-
-                                    Hi there @{employee['login']},
-
-                                    Please fill the planned/actual dates in the {project_name} Project in Mingrove-Technologies Project Board.
-
-                                    Task Title: {d['Task Name']}
-
-                                """
-                            message_html = f"""\
-
-                                    Hi there <b>@{employee['login']}</b>,<br/><br/>
-
-                                    Please fill the planned/actual dates in the <b>{project_name}</b> Project in <a href={project_map[project_name]['url']}><i>Mingrove-Technologies Project Board</i></a><br/><br/>
-
-                                    <b>Task Title:</b> {d['Task Name']}<br/>
-                                    <b>Assignee:</b> {employee['login']}<br/>
-
-                                """
-                            # callemail(employee['login'], message_text, message_html, subject)
-                    else:
-                        for employee in fields['content']['assignees']['nodes']:
-                            if(output_inProgress.get(employee['login']) == None):
-                                output_inProgress[employee['login']] = [d]
-                            else:
-                                output_inProgress[employee['login']].append(d)
-
-                if fields['fieldValueByName']['name'] == "Done":
-                    d['Task Name'] = fields['content']['title']
-                    for data in fields['fieldValues']['nodes']:
-                        if len(data)!=0:
-                            if(data.get('date')!=None):
-                                d[data['field']['name']] = data['date']
-                            if(data.get('text')!=None and data['field']['name'] == 'Dependency'):
-                                d[data['field']['name']] = data['text']
-                                dependencies = data['text']
-                                temp = [x.strip() for x in dependencies.split(',')]
-                                dependency_map[d['Task Name']] = temp
-
-                        # Computing effort variance
-
-                    if(d.get('Planned Start')==None or d.get('Planned End')==None or d.get('Actual Start')==None or d.get('Actual End')==None):
-                        for employee in fields['content']['assignees']['nodes']:
-                            subject = "Update task details"
-                            message_text = f"""\
-                                    Hi there @{employee['login']},
-
-                                    Please fill the planned/actual dates in the {project_name} Project in Mingrove-Technologies Project Board.
-
-                                    Task Title: {d['Task Name']}
-
-                                """
-                            message_html = f"""\
-
-                                    Hi there <b>@{employee['login']}</b>,<br/><br/>
-
-                                    Please fill the planned/actual dates in the <b>{project_name}</b> Project in <a href={project_map[project_name]['url']}><i>Mingrove-Technologies Project Board</i></a><br/><br/>
-
-                                    <b>Task Title:</b> {d['Task Name']}<br/>
-                                    <b>Assignee:</b> {employee['login']}<br/>
-
-                                """
-                            # callemail(employee['login'], message_text, message_html, subject)
-
-                    else:
-                        
-                        d["Planned Effort (days)"] = calc_days(d['Planned Start'], d['Planned End'])
-                        d['Actual Effort (days)'] = calc_days(d['Actual Start'], d['Actual End'])
-                        if(d['Planned Effort (days)'] == 0):
-                            d["Planned Effort (days)"] = 1
-                        if(d['Actual Effort (days)'] == 0):
-                            d['Actual Effort (days)'] = 1
-                        d['Effort variance'] = ((d['Actual Effort (days)'] - d["Planned Effort (days)"])/d["Planned Effort (days)"])*100
-                        for employee in fields['content']['assignees']['nodes']:
-                            if(output_completed.get(employee['login']) == None):
-                                output_completed[employee['login']] = [d]
-                            else:
-                                output_completed[employee['login']].append(d)
-        
+        planned, completed, in_progress = [], [], []
+        output_planned, output_inProgress, output_completed = get_data(project_name)        
         if len(output_planned)!=0:
             # print("\nPlanned tasks:\n")
             flat_data = []
@@ -375,12 +390,6 @@ def effort_variance_display():
                     n+=1
 
             planned = flat_data
-            # print(flat_data)
-            # df = pd.DataFrame(flat_data)
-            # column_order = ["S.No", "Person", "Task Name"] + [col for col in df.columns if col != "Person" and col!= "Task Name" and col!="S.No"]
-            # df = df[column_order]
-
-            # print(tabulate(df, headers='keys', tablefmt='pretty', showindex=False))
 
         if len(output_inProgress)!=0:
             # print("\nTasks in Progress:\n")
@@ -392,11 +401,6 @@ def effort_variance_display():
                     n+=1
 
             in_progress = flat_data
-            # df = pd.DataFrame(flat_data)
-            # column_order = ["S.No", "Person", "Task Name"] + [col for col in df.columns if col != "Person" and col!= "Task Name" and col!="S.No"]
-            # df = df[column_order]
-
-            # print(tabulate(df, headers='keys', tablefmt='pretty', showindex=False))
 
         if len(output_completed)!=0:
             # print("\nTasks Completed:\n")
@@ -408,11 +412,7 @@ def effort_variance_display():
                     n+=1
 
             completed = flat_data
-            # df = pd.DataFrame(flat_data)
-            # column_order = ["S.No", "Person", "Task Name"] + [col for col in df.columns if col != "Person" and col!= "Task Name" and col!="S.No"]
-            # df = df[column_order]
 
-            # print(tabulate(df, headers='keys', tablefmt='pretty', showindex=False))
     return render_template("effort_variance_table.html", name=project_name, planned=planned, in_progress=in_progress, completed=completed)
 
 @app.route('/occupancy-chart-form')
@@ -455,270 +455,8 @@ def occupancy_chart_display():
             project_name = request.form['project-title']
             session['occupancy-project'] = project_name
 
-        query = """
-            query($id: ID!){
-                node(id: $id){
-                ... on ProjectV2{
-                        items(first: 20) {
-                        nodes{
-                            fieldValueByName(name: "Status") {
-                            ... on ProjectV2ItemFieldSingleSelectValue {
-                                name
-                            }
-                            }
-                            fieldValues(first: 8) {
-                            nodes{
-                                ... on ProjectV2ItemFieldDateValue {
-                                date
-                                field {
-                                    ... on ProjectV2FieldCommon {
-                                    name
-                                    }
-                                }
-                                }
-                                ... on ProjectV2ItemFieldTextValue {
-                                text
-                                field {
-                                    ... on ProjectV2FieldCommon {
-                                    name
-                                    }
-                                }
-                                }
+        output_planned, output_inProgress, output_completed = get_data(project_name) 
 
-                            }
-                            }
-                            content{
-                                ... on DraftIssue {
-                                title
-                                body
-                                id
-                                assignees(first: 10) {
-                                    nodes{
-                                    login
-                                    }
-                                }
-                                }
-                                ...on Issue {
-                                title
-                                id
-                                assignees(first: 10) {
-                                    nodes{
-                                    login
-                                    }
-                                }
-                                }
-                                ...on PullRequest {
-                                title
-                                id
-                                assignees(first: 10) {
-                                    nodes{
-                                    login
-                                    }
-                                }
-                                }
-                            }
-                        }
-                        }
-
-                    }
-                }
-            }
-        """
-        variables ={
-            "id" : project_map[project_name]['id']
-        }
-        result = run_query(query, variables) 
-        # print(json.dumps(result, indent=2))
-        # print(request.form['project-title'])
-        output_planned = {}
-        planned = []
-        output_inProgress = {}
-        in_progress = []
-        output_completed = {}
-        completed = []
-        dependency_map = {}
-        for fields in result['data']['node']['items']['nodes']:
-            d = dict()
-            if fields['fieldValueByName']!=None:
-                if fields['fieldValueByName']['name'] == "Todo":
-                    d['Task Name'] = fields['content']['title']
-                    for data in fields['fieldValues']['nodes']:
-                        if len(data)!=0:
-                            if(data.get('date')!=None):
-                                d[data['field']['name']] = data['date']
-                            if(data.get('text')!=None and data['field']['name'] == 'Dependency'):
-                                d[data['field']['name']] = data['text']
-                                dependencies = data['text']
-                                temp = [x.strip() for x in dependencies.split(',')]
-                                dependency_map[d['Task Name']] = temp
-
-                    if(d.get('Planned Start')==None or d.get('Planned End')==None):
-                        for employee in fields['content']['assignees']['nodes']:
-                            subject = "Update task details"
-                            message_text = f"""\
-
-                                    Hi there @{employee['login']},
-
-                                    Please fill the planned dates in the {project_name} Project in Mingrove-Technologies Project Board.
-
-                                    Task Title: {d['Task Name']}
-
-                                """
-                            message_html = f"""\
-
-                                    Hi there <b>@{employee['login']}</b>,<br/><br/>
-
-                                    Please fill the planned dates in the <b>{project_name}</b> Project in <a href={project_map[project_name]['url']}><i>Mingrove-Technologies Project Board</i></a><br/><br/>
-
-                                    <b>Task Title:</b> {d['Task Name']}<br/>
-                                    <b>Assignee:</b> {employee['login']}<br/>
-
-                                """
-                            # callemail(employee['login'], message_text, message_html, subject)
-                    else:
-                        for employee in fields['content']['assignees']['nodes']:
-                            if(output_planned.get(employee['login']) == None):
-                                output_planned[employee['login']] = [d]
-                            else:
-                                output_planned[employee['login']].append(d)
-
-                if fields['fieldValueByName']['name'] == "In Progress":
-                    d['Task Name'] = fields['content']['title']
-                    for data in fields['fieldValues']['nodes']:
-                        if len(data)!=0:
-                            if(data.get('date')!=None):
-                                d[data['field']['name']] = data['date']
-                            if(data.get('text')!=None and data['field']['name'] == 'Dependency'):
-                                d[data['field']['name']] = data['text']
-                                dependencies = data['text']
-                                temp = [x.strip() for x in dependencies.split(',')]
-                                dependency_map[d['Task Name']] = temp
-
-                    if(d.get('Planned Start')==None or d.get('Planned End')==None or d.get('Actual Start')==None):
-                        for employee in fields['content']['assignees']['nodes']:
-                            subject = "Update task details"
-                            message_text = f"""\
-
-                                    Hi there @{employee['login']},
-
-                                    Please fill the planned/actual dates in the {project_name} Project in Mingrove-Technologies Project Board.
-
-                                    Task Title: {d['Task Name']}
-
-                                """
-                            message_html = f"""\
-
-                                    Hi there <b>@{employee['login']}</b>,<br/><br/>
-
-                                    Please fill the planned/actual dates in the <b>{project_name}</b> Project in <a href={project_map[project_name]['url']}><i>Mingrove-Technologies Project Board</i></a><br/><br/>
-
-                                    <b>Task Title:</b> {d['Task Name']}<br/>
-                                    <b>Assignee:</b> {employee['login']}<br/>
-
-                                """
-                            # callemail(employee['login'], message_text, message_html, subject)
-                    else:
-                        for employee in fields['content']['assignees']['nodes']:
-                            if(output_inProgress.get(employee['login']) == None):
-                                output_inProgress[employee['login']] = [d]
-                            else:
-                                output_inProgress[employee['login']].append(d)
-
-                if fields['fieldValueByName']['name'] == "Done":
-                    d['Task Name'] = fields['content']['title']
-                    for data in fields['fieldValues']['nodes']:
-                        if len(data)!=0:
-                            if(data.get('date')!=None):
-                                d[data['field']['name']] = data['date']
-                            if(data.get('text')!=None and data['field']['name'] == 'Dependency'):
-                                d[data['field']['name']] = data['text']
-                                dependencies = data['text']
-                                temp = [x.strip() for x in dependencies.split(',')]
-                                dependency_map[d['Task Name']] = temp
-
-                        # Computing effort variance
-
-                    if(d.get('Planned Start')==None or d.get('Planned End')==None or d.get('Actual Start')==None or d.get('Actual End')==None):
-                        for employee in fields['content']['assignees']['nodes']:
-                            subject = "Update task details"
-                            message_text = f"""\
-                                    Hi there @{employee['login']},
-
-                                    Please fill the planned/actual dates in the {project_name} Project in Mingrove-Technologies Project Board.
-
-                                    Task Title: {d['Task Name']}
-
-                                """
-                            message_html = f"""\
-
-                                    Hi there <b>@{employee['login']}</b>,<br/><br/>
-
-                                    Please fill the planned/actual dates in the <b>{project_name}</b> Project in <a href={project_map[project_name]['url']}><i>Mingrove-Technologies Project Board</i></a><br/><br/>
-
-                                    <b>Task Title:</b> {d['Task Name']}<br/>
-                                    <b>Assignee:</b> {employee['login']}<br/>
-
-                                """
-                            # callemail(employee['login'], message_text, message_html, subject)
-
-                    else:
-                        
-                        d["Planned Effort (days)"] = calc_days(d['Planned Start'], d['Planned End'])
-                        d['Actual Effort (days)'] = calc_days(d['Actual Start'], d['Actual End'])
-                        if(d['Planned Effort (days)'] == 0):
-                            d["Planned Effort (days)"] = 1
-                        if(d['Actual Effort (days)'] == 0):
-                            d['Actual Effort (days)'] = 1
-                        d['Effort variance'] = ((d['Actual Effort (days)'] - d["Planned Effort (days)"])/d["Planned Effort (days)"])*100
-                        for employee in fields['content']['assignees']['nodes']:
-                            if(output_completed.get(employee['login']) == None):
-                                output_completed[employee['login']] = [d]
-                            else:
-                                output_completed[employee['login']].append(d)
-        
-        # if len(output_planned)!=0:
-        #     # print("\nPlanned tasks:\n")
-        #     flat_data = []
-        #     n=1
-        #     for person, tasks in output_planned.items():
-        #         for i, task in enumerate(tasks):
-        #             flat_data.append({**task, 'S.No': n, 'Person': person})
-        #             n+=1
-
-        #     planned = flat_data
-        #     # print(flat_data)
-        #     # df = pd.DataFrame(flat_data)
-        #     # column_order = ["S.No", "Person", "Task Name"] + [col for col in df.columns if col != "Person" and col!= "Task Name" and col!="S.No"]
-        #     # df = df[column_order]
-
-        #     # print(tabulate(df, headers='keys', tablefmt='pretty', showindex=False))
-
-        # if len(output_inProgress)!=0:
-        #     # print("\nTasks in Progress:\n")
-        #     flat_data = []
-        #     n=1
-        #     for person, tasks in output_inProgress.items():
-        #         for i, task in enumerate(tasks):
-        #             flat_data.append({**task, 'S.No': n, 'Person': person})
-        #             n+=1
-
-        #     in_progress = flat_data
-        #     # df = pd.DataFrame(flat_data)
-        #     # column_order = ["S.No", "Person", "Task Name"] + [col for col in df.columns if col != "Person" and col!= "Task Name" and col!="S.No"]
-        #     # df = df[column_order]
-
-        #     # print(tabulate(df, headers='keys', tablefmt='pretty', showindex=False))
-
-        # if len(output_completed)!=0:
-        #     # print("\nTasks Completed:\n")
-        #     flat_data = []
-        #     n=1
-        #     for person, tasks in output_completed.items():
-        #         for i, task in enumerate(tasks):
-        #             flat_data.append({**task, 'S.No': n, 'Person': person})
-        #             n+=1
-
-        #     completed = flat_data
         html1 = ""
         html2 = ""
         employees = []
@@ -789,228 +527,27 @@ def email_notification():
     project = ""
     if request.method == 'POST':
         project_name = request.form['project-title']
-        query = """
-            query($id: ID!){
-                node(id: $id){
-                ... on ProjectV2{
-                        items(first: 20) {
-                        nodes{
-                            fieldValueByName(name: "Status") {
-                            ... on ProjectV2ItemFieldSingleSelectValue {
-                                name
-                            }
-                            }
-                            fieldValues(first: 8) {
-                            nodes{
-                                ... on ProjectV2ItemFieldDateValue {
-                                date
-                                field {
-                                    ... on ProjectV2FieldCommon {
-                                    name
-                                    }
-                                }
-                                }
-                                ... on ProjectV2ItemFieldTextValue {
-                                text
-                                field {
-                                    ... on ProjectV2FieldCommon {
-                                    name
-                                    }
-                                }
-                                }
-
-                            }
-                            }
-                            content{
-                                ... on DraftIssue {
-                                title
-                                body
-                                id
-                                assignees(first: 10) {
-                                    nodes{
-                                    login
-                                    }
-                                }
-                                }
-                                ...on Issue {
-                                title
-                                id
-                                assignees(first: 10) {
-                                    nodes{
-                                    login
-                                    }
-                                }
-                                }
-                                ...on PullRequest {
-                                title
-                                id
-                                assignees(first: 10) {
-                                    nodes{
-                                    login
-                                    }
-                                }
-                                }
-                            }
-                        }
-                        }
-
-                    }
-                }
-            }
-        """
-        variables ={
-            "id" : project_map[project_name]['id']
-        }
-        result = run_query(query, variables) 
-        # print(json.dumps(result, indent=2))
-        # print(request.form['project-title'])
-        output_planned = {}
-        output_inProgress = {}
-        output_completed = {}
-        dependency_map = {}
-        for fields in result['data']['node']['items']['nodes']:
-            d = dict()
-            if fields['fieldValueByName']!=None:
-                if fields['fieldValueByName']['name'] == "Todo":
-                    d['Task Name'] = fields['content']['title']
-                    for data in fields['fieldValues']['nodes']:
-                        if len(data)!=0:
-                            if(data.get('date')!=None):
-                                d[data['field']['name']] = data['date']
-                            if(data.get('text')!=None and data['field']['name'] == 'Dependency'):
-                                d[data['field']['name']] = data['text']
-                                dependencies = data['text']
-                                temp = [x.strip() for x in dependencies.split(',')]
-                                dependency_map[d['Task Name']] = temp
-
-                    if(d.get('Planned Start')==None or d.get('Planned End')==None):
-                        for employee in fields['content']['assignees']['nodes']:
-                            subject = "Update task details"
-                            message_text = f"""\
-
-                                    Hi there @{employee['login']},
-
-                                    Please fill the planned dates in the {project_name} Project in Mingrove-Technologies Project Board.
-
-                                    Task Title: {d['Task Name']}
-
-                                """
-                            message_html = f"""\
-
-                                    Hi there <b>@{employee['login']}</b>,<br/><br/>
-
-                                    Please fill the planned dates in the <b>{project_name}</b> Project in <a href={project_map[project_name]['url']}><i>Mingrove-Technologies Project Board</i></a><br/><br/>
-
-                                    <b>Task Title:</b> {d['Task Name']}<br/>
-                                    <b>Assignee:</b> {employee['login']}<br/>
-
-                                """
-                            project = project_name
-                            callemail(employee['login'], message_text, message_html, subject)
-                    else:
-                        for employee in fields['content']['assignees']['nodes']:
-                            if(output_planned.get(employee['login']) == None):
-                                output_planned[employee['login']] = [d]
-                            else:
-                                output_planned[employee['login']].append(d)
-
-                if fields['fieldValueByName']['name'] == "In Progress":
-                    d['Task Name'] = fields['content']['title']
-                    for data in fields['fieldValues']['nodes']:
-                        if len(data)!=0:
-                            if(data.get('date')!=None):
-                                d[data['field']['name']] = data['date']
-                            if(data.get('text')!=None and data['field']['name'] == 'Dependency'):
-                                d[data['field']['name']] = data['text']
-                                dependencies = data['text']
-                                temp = [x.strip() for x in dependencies.split(',')]
-                                dependency_map[d['Task Name']] = temp
-
-                    if(d.get('Planned Start')==None or d.get('Planned End')==None or d.get('Actual Start')==None):
-                        for employee in fields['content']['assignees']['nodes']:
-                            subject = "Update task details"
-                            message_text = f"""\
-
-                                    Hi there @{employee['login']},
-
-                                    Please fill the planned/actual dates in the {project_name} Project in Mingrove-Technologies Project Board.
-
-                                    Task Title: {d['Task Name']}
-
-                                """
-                            message_html = f"""\
-
-                                    Hi there <b>@{employee['login']}</b>,<br/><br/>
-
-                                    Please fill the planned/actual dates in the <b>{project_name}</b> Project in <a href={project_map[project_name]['url']}><i>Mingrove-Technologies Project Board</i></a><br/><br/>
-
-                                    <b>Task Title:</b> {d['Task Name']}<br/>
-                                    <b>Assignee:</b> {employee['login']}<br/>
-
-                                """
-                            project = project_name
-                            callemail(employee['login'], message_text, message_html, subject)
-                    else:
-                        for employee in fields['content']['assignees']['nodes']:
-                            if(output_inProgress.get(employee['login']) == None):
-                                output_inProgress[employee['login']] = [d]
-                            else:
-                                output_inProgress[employee['login']].append(d)
-
-                if fields['fieldValueByName']['name'] == "Done":
-                    d['Task Name'] = fields['content']['title']
-                    for data in fields['fieldValues']['nodes']:
-                        if len(data)!=0:
-                            if(data.get('date')!=None):
-                                d[data['field']['name']] = data['date']
-                            if(data.get('text')!=None and data['field']['name'] == 'Dependency'):
-                                d[data['field']['name']] = data['text']
-                                dependencies = data['text']
-                                temp = [x.strip() for x in dependencies.split(',')]
-                                dependency_map[d['Task Name']] = temp
-
-                        # Computing effort variance
-
-                    if(d.get('Planned Start')==None or d.get('Planned End')==None or d.get('Actual Start')==None or d.get('Actual End')==None):
-                        for employee in fields['content']['assignees']['nodes']:
-                            subject = "Update task details"
-                            message_text = f"""\
-                                    Hi there @{employee['login']},
-
-                                    Please fill the planned/actual dates in the {project_name} Project in Mingrove-Technologies Project Board.
-
-                                    Task Title: {d['Task Name']}
-
-                                """
-                            message_html = f"""\
-
-                                    Hi there <b>@{employee['login']}</b>,<br/><br/>
-
-                                    Please fill the planned/actual dates in the <b>{project_name}</b> Project in <a href={project_map[project_name]['url']}><i>Mingrove-Technologies Project Board</i></a><br/><br/>
-
-                                    <b>Task Title:</b> {d['Task Name']}<br/>
-                                    <b>Assignee:</b> {employee['login']}<br/>
-
-                                """
-                            project = project_name
-                            callemail(employee['login'], message_text, message_html, subject)
-
-                    else:
-                        
-                        d["Planned Effort (days)"] = calc_days(d['Planned Start'], d['Planned End'])
-                        d['Actual Effort (days)'] = calc_days(d['Actual Start'], d['Actual End'])
-                        if(d['Planned Effort (days)'] == 0):
-                            d["Planned Effort (days)"] = 1
-                        if(d['Actual Effort (days)'] == 0):
-                            d['Actual Effort (days)'] = 1
-                        d['Effort variance'] = ((d['Actual Effort (days)'] - d["Planned Effort (days)"])/d["Planned Effort (days)"])*100
-                        for employee in fields['content']['assignees']['nodes']:
-                            if(output_completed.get(employee['login']) == None):
-                                output_completed[employee['login']] = [d]
-                            else:
-                                output_completed[employee['login']].append(d)
-
+        get_data(project_name, email=True) 
     return render_template("email_notification.html", projects=project_map, project=project)
 
+@app.route("/dependency-chart", methods=['POST'])
+def display_dependency_chart():
+    if request.method == 'POST':
+        project_name = request.form['project-title']
+        dependency_map = get_data(project_name, email=False, dependency=True)
+        g = nx.DiGraph()
+        g.add_nodes_from(dependency_map.keys())
+
+        for keys, values in dependency_map.items():
+            for i in values:
+                g.add_edge(keys, i)
+
+        plt.figure(figsize=(15,6))
+        nx.draw(g, pos=nx.spring_layout(g), with_labels=True, arrows=None, arrowsize=15, node_size=1000, node_color="#FFFFFF", node_shape='s')
+        buf = BytesIO()
+        plt.savefig(buf, format="png")
+        data = base64.b64encode(buf.getbuffer()).decode("ascii")
+        # html = f"<img src='data:image/png;base64,{data}'/>"
+        return render_template("dependency_chart_display.html", project=project_name, data=data)
 if __name__ == "__main__":
     app.run(debug=True)
